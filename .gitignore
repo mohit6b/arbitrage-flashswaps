@@ -15,3 +15,26 @@
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
+
+# Rust-specific
+target/
+*.lock
+*.rs.bk
+
+# Generated files
+*.dSYM
+*.log
+*.out
+*.tmp
+*.swp
+*.bak
+*.old
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.code-workspace
+
+# Environment files
+.env
+.env.*

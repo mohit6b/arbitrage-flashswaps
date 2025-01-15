@@ -2,62 +2,79 @@
 pragma solidity ^0.8.0;
 pragma abicoder v2;
 
+/**
+ * @title Arbitrage Contract
+ * @notice Facilitates arbitrage trading between Uniswap V2 and V3 pools using WETH and USDC
+ */
 contract arbitrage {
+    // Constants for router and token addresses
     address private constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address constant SWAP_ROUTER_02 = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
     address private constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; //token in
     address private constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; //token out
 
+    // Events for logging key actions
     event TestWETHTransfer(address, address, uint256);
     event TestApproval(address, uint256);
     event PATH(address[]);
     event AMOUNTS(uint256[]);
     event InputEvent(address, address, uint256);
 
+    // Interfaces for interacting with Uniswap and token contracts
     IUniswapV2Router private v2_router = IUniswapV2Router(UNISWAP_V2_ROUTER);
     ISwapRouter02 private v3_router = ISwapRouter02(SWAP_ROUTER_02);
     IWETH private weth = IWETH(WETH);
     IERC20 private usdc = IERC20(USDC);
-    uint256 lastSwapOutput;
-    address owner;
+    uint256 lastSwapOutput; // Holds the result of the last swap
+    address owner; // Tracks the owner of the arbitrage call
 
+    // Structure defining swap parameters
     struct SwapParams {
-        address pool;
-        bool isV3;
-        bool sellToken0; //token0 = WETH, token1 = USDC
+        address pool; // Address of the liquidity pool
+        bool isV3; // Indicates whether the pool is Uniswap V3
+        bool sellToken0; // Indicates the token being sold (true: token0, false: token1)
     }
 
-    // Main entry point for atomic arbitrage
+    /**
+     * @notice Executes a multi-hop arbitrage trade based on the provided payload
+     * @param payload Encoded input data containing amounts, minimum profit, and swap parameters
+     */
     function executeArbitrage(bytes calldata payload) external {
         // Decode initial parameters
         uint128 inputAmount = uint128(bytes16(payload[0:16]));
         uint128 minProfit = uint128(bytes16(payload[16:32]));
 
-        owner = msg.sender;
-        lastSwapOutput = inputAmount;
-        uint256 hopCount = (payload.length - 32) / 21;
+        owner = msg.sender; // Set the caller as the owner for this transaction
+        lastSwapOutput = inputAmount; // Initialize swap output
+        uint256 hopCount = (payload.length - 32) / 21; // Calculate the number of hops
 
+        // Process each swap
         for (uint256 i = 0; i < hopCount; i++) {
             uint256 offset = 32 + (i * 21);
 
-            SwapParams memory params = this.decodeNextSwap(payload, offset);
-            this.executeSwap(params, lastSwapOutput, 1);
+            SwapParams memory params = decodeNextSwap(payload, offset);
+            executeSwap(params, lastSwapOutput, 1);
         }
 
-        // Verify profit
+        // Ensure the trade meets the minimum profit requirement
         require(lastSwapOutput >= minProfit + inputAmount, "Insufficient profit");
     }
 
-
-    function decodeNextSwap(bytes calldata payload, uint256 offset) external pure returns (SwapParams memory) {
+    /**
+     * @notice Decodes swap parameters from the payload
+     * @param payload Encoded input data
+     * @param offset Offset for reading swap parameters
+     * @return Decoded SwapParams struct
+     */
+    function decodeNextSwap(bytes calldata payload, uint256 offset) internal pure returns (SwapParams memory) {
         require(offset + 21 <= payload.length, "Invalid data length");
         
         // First byte contains poolType and direction
         uint8 selectorAndDirection = uint8(payload[offset]); //uint8(payload[offset]);
-        bool poolType = (selectorAndDirection & 0x02) != 0; // Second bit
-        bool direction = (selectorAndDirection & 0x01) != 0; // First bit
+        bool poolType = (selectorAndDirection & 0x02) != 0; // Extracts pool type (2nd bit)
+        bool direction = (selectorAndDirection & 0x01) != 0; // Extracts direction (1st bit)
 
-        // Next 20 bytes for poolAddress
+        // Decode the pool address from the next 20 bytes
         address poolAddress;
         assembly {
             poolAddress := shr(96, calldataload(add(payload.offset, add(offset, 1))))
@@ -70,20 +87,29 @@ contract arbitrage {
         });
     }
 
-
-    function executeSwap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) external {
+    /**
+     * @notice Executes a swap operation based on the provided parameters
+     * @param params Swap parameters
+     * @param amountIn Input token amount for the swap
+     * @param amountOutMin Minimum output amount required from the swap
+     */
+    function executeSwap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) internal {
         if (params.isV3) {
-            this.executeV3Swap(params, amountIn, amountOutMin);
+            executeV3Swap(params, amountIn, amountOutMin);
         } else {
-            this.executeV2Swap(params, amountIn, amountOutMin);
+            executeV2Swap(params, amountIn, amountOutMin);
         }
     }
 
-    // Swap WETH to USDC: The start/end token is always WETH.  
-
-    // no need for uint256 amountIn as it is coming from params
-    function executeV2Swap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) external returns (uint256 amountOut) {
-        
+    /**
+     * @notice Executes a Uniswap V2 swap
+     * @param params Swap parameters
+     * @param amountIn Input token amount
+     * @param amountOutMin Minimum output amount required
+     * @return amountOut The actual output amount received
+     */
+    function executeV2Swap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) internal returns (uint256 amountOut) {
+        // Determine the token path for the swap
         address[] memory path;
         path = new address[](2);
 
@@ -96,6 +122,7 @@ contract arbitrage {
         tokenIn.transferFrom(owner, address(this), amountIn);
         tokenIn.approve(address(v2_router), amountIn);
 
+        // Set up the swap parameters and execute the swap
         uint256[] memory amounts = v2_router.swapExactTokensForTokens(
             amountIn, amountOutMin, path, msg.sender, block.timestamp
         );
@@ -107,10 +134,18 @@ contract arbitrage {
 
     }
 
-    function executeV3Swap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) external returns (uint256 amountOut) {
+    /**
+     * @notice Executes a Uniswap V3 swap
+     * @param params Swap parameters
+     * @param amountIn Input token amount
+     * @param amountOutMin Minimum output amount required
+     * @return amountOut The actual output amount received
+     */
+    function executeV3Swap(SwapParams memory params, uint256 amountIn, uint256 amountOutMin) internal returns (uint256 amountOut) {
         address[] memory path;
         path = new address[](2);
 
+        // Determine the token path for the swap
         IERC20 tokenIn = params.sellToken0 ? weth : usdc;
         path[0] = params.sellToken0 ? WETH : USDC;
         path[1] = params.sellToken0 ? USDC : WETH;
@@ -119,7 +154,7 @@ contract arbitrage {
         tokenIn.transferFrom(owner, address(this), amountIn);
         tokenIn.approve(address(v3_router), amountIn);
 
-
+        // Set up the swap parameters and execute the swap
         ISwapRouter02.ExactInputSingleParams memory parameter = ISwapRouter02
             .ExactInputSingleParams({
             tokenIn: path[0],
