@@ -1,4 +1,15 @@
-## Arbitrage
+## Arbitrage-Flashswaps
+
+### Arbitrage Smart Contract
+
+This Solidity smart contract facilitates atomic arbitrage between Uniswap V2 and Uniswap V3 pools in a single transaction. It takes a payload containing swap parameters, decodes the data, and executes sequential swaps. Key highlights of the contract:
+
+1. **Decoding Payload**: The `executeArbitrage` function decodes the provided payload to extract swap parameters like pool type, token direction, and pool address for each hop.
+2. **Dynamic Swap Execution**: It supports both Uniswap V2 and V3 swaps based on the pool type and token direction using `executeV2Swap` and `executeV3Swap` methods.
+3. **Profit Validation**: After executing all swaps, it checks if the profit exceeds the specified minimum to ensure the arbitrage was successful.
+4. **Token Approvals**: Tokens are dynamically approved and transferred to the respective pools during the swaps to facilitate seamless execution.
+5. **WETH and USDC Tokens**: The contract assumes WETH as the starting and ending token, while USDC is involved in intermediate swaps.
+6. **Gas Optimization**: The implementation minimizes gas usage by leveraging calldata for decoding and conditional swap execution.
 
 ### Backend
 #### Ethereum Smart Contract Interaction
