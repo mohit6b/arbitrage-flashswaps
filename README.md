@@ -48,3 +48,9 @@ This Rust program defines and encodes an arbitrage request for decentralized exc
 5. **Main**: Demonstrates encoding and decoding with a sample arbitrage request.
 
 This encoder ensures efficient serialization and deserialization of arbitrage data for smart contract interactions.
+
+
+### Output
+![Smart Contract Execution](./smart_contract_execution.png)
+![Rust Encoder Execution](./rust_encoder_&_solidity_SC_invocation.png)
+![Mainnet Fork Execution](./Mainnet_fork_txns.png)
