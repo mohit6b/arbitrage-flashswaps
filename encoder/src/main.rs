@@ -305,31 +305,30 @@ abigen!(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to the Ethereum provider
-    let provider = Provider::<Http>::try_from("http://localhost:8545")?;
+    let provider = Provider::<Http>::try_from("http://localhost:8545")?;  // TODO: Add env
     let provider = Arc::new(provider);
 
     // Initialize wallet
-    let wallet: LocalWallet = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?;
+    let wallet: LocalWallet = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?;  // TODO: Add env
     let client = SignerMiddleware::new(provider.clone(), wallet);
     let client = Arc::new(client);
 
-    let arbitrage_contract_address = "0x69eB226983E10D7318816134cd44BE3023dC74cd".parse::<Address>()?;
+    let arbitrage_contract_address = "0x69eB226983E10D7318816134cd44BE3023dC74cd".parse::<Address>()?;   // TODO: Add env
     let arbitrage_contract = arbitrageContract::new(arbitrage_contract_address, client.clone());
 
     // Define the contract address
-    let iweth_contract_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse::<Address>()?;
+    let iweth_contract_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse::<Address>()?;  // TODO: Add env
     let iweth_contract = IWETH::new(iweth_contract_address, client.clone());
 
-    let iusdc_contract_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse::<Address>()?;
+    let iusdc_contract_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse::<Address>()?;  // TODO: Add env
     let iusdc_contract = IUSDC::new(iusdc_contract_address, client.clone());
 
     // Define addresses and amounts
-    let address_approve = "0x69eB226983E10D7318816134cd44BE3023dC74cd".parse::<Address>()?;
-    let pub_key = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse::<Address>()?;
+    let owner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse::<Address>()?;
     let amount = U256::from(10).pow(U256::from(18)); // 1 ETHER
 
     // Approve transaction and wait for confirmation
-    let approve_call = iweth_contract.approve(address_approve, amount*2);
+    let approve_call = iweth_contract.approve(arbitrage_contract_address, amount*2);
     let pending_tx = approve_call.send().await?;
     let approve_receipt = pending_tx.await?;
     println!("Approval transaction confirmed. Receipt: {:?}", 
@@ -338,7 +337,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Wait a bit for the state to update
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    let approve_usdc_call = iusdc_contract.approve(address_approve, amount*2);
+    let approve_usdc_call = iusdc_contract.approve(arbitrage_contract_address, amount*2);
     let pending_usdc_tx = approve_usdc_call.send().await?;
     let approve_usdc_receipt = pending_usdc_tx.await?;
     println!("Approval transaction confirmed. Receipt: {:?}", 
@@ -348,17 +347,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     // Get actual allowance value
-    let allowance = iweth_contract.allowance(pub_key, address_approve).call().await?;
-    println!("Allowance of contract address {}: {}", address_approve, allowance);
+    let weth_allowance = iweth_contract.allowance(owner, arbitrage_contract_address).call().await?;
+    println!("WETH Allowance of contract address {}: {}", arbitrage_contract_address, weth_allowance);
 
-    let allowance2 = iusdc_contract.allowance(pub_key, address_approve).call().await?;
-    println!("Allowance of contract address {}: {}", address_approve, allowance2);
+    let usdc_allowance = iusdc_contract.allowance(owner, arbitrage_contract_address).call().await?;
+    println!("USDC Allowance of contract address {}: {}", arbitrage_contract_address, usdc_allowance);
     
 
-    let initBalWETH = iweth_contract.balance_of(pub_key).call().await?;
-    println!("initBalWETH of sender {}: {}", pub_key, initBalWETH);
-    let initBalUSDC = iusdc_contract.balance_of(pub_key).call().await?;
-    println!("initBalUSDC of contract address {}: {}", pub_key, initBalUSDC);
+    let initBalWETH = iweth_contract.balance_of(owner).call().await?;
+    println!("initBalWETH of sender {}: {}", owner, initBalWETH);
+    let initBalUSDC = iusdc_contract.balance_of(owner).call().await?;
+    println!("initBalUSDC of contract address {}: {}", owner, initBalUSDC);
 
     // Call the encodingRequest function
     let encoded_bytes = encoding::encodingRequest();
@@ -374,10 +373,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    let finalBalWETH = iweth_contract.balance_of(pub_key).call().await?;
-    println!("finalBalWETH of sender {}: {}", pub_key, finalBalWETH);
-    let finalBalUSDC = iusdc_contract.balance_of(pub_key).call().await?;
-    println!("finalBalUSDC of contract address {}: {}", pub_key, finalBalUSDC);
+    let finalBalWETH = iweth_contract.balance_of(owner).call().await?;
+    println!("finalBalWETH of sender {}: {}", owner, finalBalWETH);
+    let finalBalUSDC = iusdc_contract.balance_of(owner).call().await?;
+    println!("finalBalUSDC of contract address {}: {}", owner, finalBalUSDC);
 
     Ok(())
 }
