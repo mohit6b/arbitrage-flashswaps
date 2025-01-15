@@ -16,10 +16,19 @@ This Solidity smart contract facilitates atomic arbitrage between Uniswap V2 and
 main.rs is the simple rust implementation to interact with an Ethereum arbitrage smart contract using ethers-rs.
 
 ##### Setup
-1. Clone repo and go to encoder folder: `cd encoder`
-2. Install dependencies: `cargo build`
-3. Set your Ethereum node URL and private key in .env
-4. Run: `cargo run`
+1. Clone repo and go to encoder folder:
+   ```bash
+   cd encoder
+   ```
+3. Install dependencies:
+   ```bash
+   cargo build
+   ```
+5. Set your Ethereum node URL and private key in .env
+6. Run:
+   ```bash
+   cargo run
+   ```
 
 ##### Features
 1. Connect to Ethereum node
